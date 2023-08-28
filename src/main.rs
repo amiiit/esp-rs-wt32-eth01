@@ -10,6 +10,8 @@ use std::error::Error;
 use esp_idf_hal::gpio;
 
 fn main() -> Result<(), Box<dyn Error>> {
+    info!("main start");
+
     // It is necessary to call this function once. Otherwise some patches to the runtime
     // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
     esp_idf_sys::link_patches();
@@ -36,14 +38,22 @@ fn main() -> Result<(), Box<dyn Error>> {
                                                        None,
                                                        sysloop.clone(), )?;
 
+    info!("created driver");
+
     let eth = esp_idf_svc::eth::EspEth::wrap(
         driver,
     )?;
 
+    info!("created EspEth");
+
     let mut blocking_eth = esp_idf_svc::eth::BlockingEth::wrap(eth, sysloop.clone())?;
+    info!("created BlockingEth");
     blocking_eth.start()?;
+    info!("BlockingEth started");
+
+    info!("Will wait netif up");
     blocking_eth.wait_netif_up()?;
 
-    info!("Hello, world!");
+    info!("Netif is up");
     Ok(())
 }
