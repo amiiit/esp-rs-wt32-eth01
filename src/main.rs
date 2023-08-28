@@ -15,9 +15,10 @@ use esp_idf_svc::eventloop::EspSystemEventLoop;
 
 fn main() -> Result<(), Box<dyn Error>>{
     esp_idf_sys::link_patches();
+
     esp_idf_svc::log::EspLogger::initialize_default();
 
-    info!("Hello, world!");
+    info!("Hello, world!!");
 
     let peripherals = Peripherals::take().unwrap();
     let sysloop = EspSystemEventLoop::take()?;
@@ -40,7 +41,7 @@ fn main() -> Result<(), Box<dyn Error>>{
                                                        esp_idf_svc::eth::RmiiClockConfig::<gpio::Gpio0, gpio::Gpio16, gpio::Gpio17>::Input(
                                                            pins.gpio0,
                                                        ),
-                                                       Some(pins.gpio5),
+                                                       Option::<esp_idf_hal::gpio::AnyIOPin>::None,
                                                        esp_idf_svc::eth::RmiiEthChipset::LAN87XX,
                                                        None,
                                                        sysloop.clone(), )?;
