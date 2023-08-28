@@ -1,26 +1,33 @@
-use esp_idf_hal::peripherals::Peripherals;
+// use esp_idf_hal::peripherals::Peripherals;
 use esp_idf_sys as _;
 // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 use log::*;
-use esp_idf_svc::errors;
-use esp_idf_svc::eventloop::EspSystemEventLoop;
-use std::net::Ipv4Addr;
+// use esp_idf_svc::errors;
+// use esp_idf_svc::eventloop::EspSystemEventLoop;
+// use std::net::Ipv4Addr;
 use std::error::Error;
-// use embedded_svc::eth;
+// // use embedded_svc::eth;
 use esp_idf_hal::gpio;
 
-fn main() -> Result<(), Box<dyn Error>> {
-    info!("main start");
+use esp_idf_hal::peripherals::Peripherals;
+use esp_idf_svc::eventloop::EspSystemEventLoop;
 
-    // It is necessary to call this function once. Otherwise some patches to the runtime
-    // implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71
+
+fn main() -> Result<(), Box<dyn Error>>{
     esp_idf_sys::link_patches();
-    // Bind the log crate to the ESP Logging facilities
     esp_idf_svc::log::EspLogger::initialize_default();
+
+    info!("Hello, world!");
+
     let peripherals = Peripherals::take().unwrap();
     let sysloop = EspSystemEventLoop::take()?;
     let pins = peripherals.pins;
 
+    info!("peripherals and pins"); // I can see this line logged
+
+    // Seems like the following line is causing the runtime error:
+    // E (627) esp.emac: emac_esp32_init(349): reset timeout
+    // E (627) esp_eth: esp_eth_driver_install(214): init mac failed
     let driver = esp_idf_svc::eth::EthDriver::new_rmii(peripherals.mac,
                                                        pins.gpio25,
                                                        pins.gpio26,
@@ -34,26 +41,16 @@ fn main() -> Result<(), Box<dyn Error>> {
                                                            pins.gpio0,
                                                        ),
                                                        Some(pins.gpio5),
-                                                       esp_idf_svc::eth::RmiiEthChipset::IP101,
+                                                       esp_idf_svc::eth::RmiiEthChipset::LAN87XX,
                                                        None,
                                                        sysloop.clone(), )?;
 
-    info!("created driver");
+    info!("created driver"); // this line I can't see logged anymore
+    // Just:
+    // I (627) esp_idf_svc::eventloop: System event loop dropped
+    // Error: EspError(263)
 
-    let eth = esp_idf_svc::eth::EspEth::wrap(
-        driver,
-    )?;
 
-    info!("created EspEth");
-
-    let mut blocking_eth = esp_idf_svc::eth::BlockingEth::wrap(eth, sysloop.clone())?;
-    info!("created BlockingEth");
-    blocking_eth.start()?;
-    info!("BlockingEth started");
-
-    info!("Will wait netif up");
-    blocking_eth.wait_netif_up()?;
-
-    info!("Netif is up");
     Ok(())
+
 }
