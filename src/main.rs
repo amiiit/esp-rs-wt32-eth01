@@ -10,12 +10,56 @@ use std::error::Error;
 use esp_idf_hal::gpio;
 
 use esp_idf_hal::peripherals::Peripherals;
+use esp_idf_svc::eth::{BlockingEth, EspEth};
 use esp_idf_svc::eventloop::EspSystemEventLoop;
 
+use embedded_svc::{
+    http::{client::Client as HttpClient, Method},
+    io::Write,
+    utils::io,
+    wifi::{AuthMethod, ClientConfiguration, Configuration},
+};
+use std::io::prelude::*;
+use std::net::TcpStream;
+use esp_idf_svc::http::client::EspHttpConnection;
+
+/// Send a HTTP GET request.
+fn get_request(client: &mut HttpClient<EspHttpConnection>) -> Result<(), Box<dyn Error>> {
+    // Prepare headers and URL
+    let headers = [("accept", "text/plain"), ("connection", "close")];
+    let url = "http://ifconfig.net/";
+
+    // Send request
+    //
+    // Note: If you don't want to pass in any headers, you can also use `client.get(url, headers)`.
+    let request = client.request(Method::Get, url, &headers)?;
+    info!("-> GET {}", url);
+    let mut response = request.submit()?;
+
+    // Process response
+    let status = response.status();
+    info!("<- {}", status);
+    let (_headers, mut body) = response.split();
+    let mut buf = [0u8; 1024];
+    let bytes_read = io::try_read_full(&mut body, &mut buf).map_err(|e| e.0)?;
+    info!("Read {} bytes", bytes_read);
+    match std::str::from_utf8(&buf[0..bytes_read]) {
+        Ok(body_string) => info!(
+            "Response body (truncated to {} bytes): {:?}",
+            buf.len(),
+            body_string
+        ),
+        Err(e) => error!("Error decoding response body: {}", e),
+    };
+
+    // Drain the remaining response bytes
+    while body.read(&mut buf)? > 0 {}
+
+    Ok(())
+}
 
 fn main() -> Result<(), Box<dyn Error>>{
     esp_idf_sys::link_patches();
-
     esp_idf_svc::log::EspLogger::initialize_default();
 
     info!("Hello, world!!");
@@ -41,17 +85,28 @@ fn main() -> Result<(), Box<dyn Error>>{
                                                        esp_idf_svc::eth::RmiiClockConfig::<gpio::Gpio0, gpio::Gpio16, gpio::Gpio17>::Input(
                                                            pins.gpio0,
                                                        ),
-                                                       Option::<esp_idf_hal::gpio::AnyIOPin>::None,
+                                                       Some(pins.gpio16),
                                                        esp_idf_svc::eth::RmiiEthChipset::LAN87XX,
-                                                       None,
+                                                       Some(1),
                                                        sysloop.clone(), )?;
 
-    info!("created driver"); // this line I can't see logged anymore
-    // Just:
-    // I (627) esp_idf_svc::eventloop: System event loop dropped
-    // Error: EspError(263)
+    let eth = EspEth::wrap(driver)?;
+    info!("Eth created");
 
+
+    let mut eth = BlockingEth::wrap(eth, sysloop.clone())?;
+
+    info!("Starting eth...");
+    eth.start()?;
+    info!("Waiting for DHCP lease...");
+
+    eth.wait_netif_up()?;
+
+    let ip_info = eth.eth().netif().get_ip_info()?;
+    info!("Eth DHCP info: {:?}", ip_info);
+
+    let mut client = HttpClient::wrap(EspHttpConnection::new(&Default::default())?);
+    get_request(&mut client);
 
     Ok(())
-
 }
