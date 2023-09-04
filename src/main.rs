@@ -17,11 +17,37 @@ use embedded_svc::{
     http::{client::Client as HttpClient, Method},
     io::Write,
     utils::io,
-    wifi::{AuthMethod, ClientConfiguration, Configuration},
 };
 use std::io::prelude::*;
 use std::net::TcpStream;
 use esp_idf_svc::http::client::EspHttpConnection;
+
+fn test_https_client(client: &mut HttpClient<EspHttpConnection>) -> Result<(), Box<dyn Error>> {
+    use embedded_svc::http::{self, client::*, status, Headers, Status};
+    use embedded_svc::io::Read;
+    use embedded_svc::utils::io;
+    use esp_idf_svc::http::client::*;
+
+    let url = String::from("https://example.com");
+
+    info!("About to fetch content from {}", url);
+
+    let mut response = client.get(&url)?.submit()?;
+
+    let mut body = [0_u8; 3048];
+
+    let read = io::try_read_full(&mut response, &mut body).map_err(|err| err.0)?;
+
+    info!(
+        "Body (truncated to 3K):\n{:?}",
+        String::from_utf8_lossy(&body[..read]).into_owned()
+    );
+
+    // Complete the response
+    while response.read(&mut body)? > 0 {}
+
+    Ok(())
+}
 
 /// Send a HTTP GET request.
 fn get_request(client: &mut HttpClient<EspHttpConnection>) -> Result<(), Box<dyn Error>> {
@@ -58,7 +84,7 @@ fn get_request(client: &mut HttpClient<EspHttpConnection>) -> Result<(), Box<dyn
     Ok(())
 }
 
-fn main() -> Result<(), Box<dyn Error>>{
+fn main() -> Result<(), Box<dyn Error>> {
     esp_idf_sys::link_patches();
     esp_idf_svc::log::EspLogger::initialize_default();
 
@@ -105,8 +131,13 @@ fn main() -> Result<(), Box<dyn Error>>{
     let ip_info = eth.eth().netif().get_ip_info()?;
     info!("Eth DHCP info: {:?}", ip_info);
 
-    let mut client = HttpClient::wrap(EspHttpConnection::new(&Default::default())?);
-    get_request(&mut client);
+    let mut client = HttpClient::wrap(EspHttpConnection::new(&esp_idf_svc::http::client::Configuration {
+        crt_bundle_attach: Some(esp_idf_sys::esp_crt_bundle_attach),
+        buffer_size: Some(10000),
+        ..Default::default()
+    })?);
 
+    get_request(&mut client);
+    test_https_client(&mut client);
     Ok(())
 }
