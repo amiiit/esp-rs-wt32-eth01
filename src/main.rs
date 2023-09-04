@@ -28,13 +28,13 @@ fn test_https_client(client: &mut HttpClient<EspHttpConnection>) -> Result<(), B
     use embedded_svc::utils::io;
     use esp_idf_svc::http::client::*;
 
-    let url = String::from("https://example.com");
+    let url = String::from("https://google.com");
 
     info!("About to fetch content from {}", url);
 
     let mut response = client.get(&url)?.submit()?;
 
-    let mut body = [0_u8; 3048];
+    let mut body = [0_u8; 1024];
 
     let read = io::try_read_full(&mut response, &mut body).map_err(|err| err.0)?;
 
@@ -133,7 +133,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let mut client = HttpClient::wrap(EspHttpConnection::new(&esp_idf_svc::http::client::Configuration {
         crt_bundle_attach: Some(esp_idf_sys::esp_crt_bundle_attach),
-        buffer_size: Some(10000),
+        buffer_size: Some(64000),
         ..Default::default()
     })?);
 
