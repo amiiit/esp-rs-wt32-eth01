@@ -84,21 +84,12 @@ fn get_request(client: &mut HttpClient<EspHttpConnection>) -> Result<(), Box<dyn
     Ok(())
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
-    esp_idf_sys::link_patches();
-    esp_idf_svc::log::EspLogger::initialize_default();
-
-    info!("Hello, world!!");
-
+fn start_eth() -> Result<BlockingEth<EspEth<'static, esp_idf_svc::eth::RmiiEth>>, Box<dyn Error>> {
     let peripherals = Peripherals::take().unwrap();
     let sysloop = EspSystemEventLoop::take()?;
     let pins = peripherals.pins;
 
     info!("peripherals and pins"); // I can see this line logged
-
-    // Seems like the following line is causing the runtime error:
-    // E (627) esp.emac: emac_esp32_init(349): reset timeout
-    // E (627) esp_eth: esp_eth_driver_install(214): init mac failed
     let driver = esp_idf_svc::eth::EthDriver::new_rmii(peripherals.mac,
                                                        pins.gpio25,
                                                        pins.gpio26,
@@ -130,7 +121,15 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let ip_info = eth.eth().netif().get_ip_info()?;
     info!("Eth DHCP info: {:?}", ip_info);
+    Ok(eth)
+}
 
+fn main() -> Result<(), Box<dyn Error>> {
+    esp_idf_sys::link_patches();
+    esp_idf_svc::log::EspLogger::initialize_default();
+
+    info!("Hello, world!!");
+    let eth = start_eth()?;
     let mut client = HttpClient::wrap(EspHttpConnection::new(&esp_idf_svc::http::client::Configuration {
         crt_bundle_attach: Some(esp_idf_sys::esp_crt_bundle_attach),
         buffer_size: Some(64000),
