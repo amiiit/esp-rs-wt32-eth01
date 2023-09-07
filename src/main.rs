@@ -88,8 +88,6 @@ fn start_eth() -> Result<BlockingEth<EspEth<'static, esp_idf_svc::eth::RmiiEth>>
     let peripherals = Peripherals::take().unwrap();
     let sysloop = EspSystemEventLoop::take()?;
     let pins = peripherals.pins;
-
-    info!("peripherals and pins"); // I can see this line logged
     let driver = esp_idf_svc::eth::EthDriver::new_rmii(peripherals.mac,
                                                        pins.gpio25,
                                                        pins.gpio26,
@@ -108,15 +106,9 @@ fn start_eth() -> Result<BlockingEth<EspEth<'static, esp_idf_svc::eth::RmiiEth>>
                                                        sysloop.clone(), )?;
 
     let eth = EspEth::wrap(driver)?;
-    info!("Eth created");
-
-
     let mut eth = BlockingEth::wrap(eth, sysloop.clone())?;
-
-    info!("Starting eth...");
     eth.start()?;
     info!("Waiting for DHCP lease...");
-
     eth.wait_netif_up()?;
 
     let ip_info = eth.eth().netif().get_ip_info()?;
@@ -127,8 +119,7 @@ fn start_eth() -> Result<BlockingEth<EspEth<'static, esp_idf_svc::eth::RmiiEth>>
 fn main() -> Result<(), Box<dyn Error>> {
     esp_idf_sys::link_patches();
     esp_idf_svc::log::EspLogger::initialize_default();
-
-    info!("Hello, world!!");
+    info!("Start");
     let eth = start_eth()?;
     let mut client = HttpClient::wrap(EspHttpConnection::new(&esp_idf_svc::http::client::Configuration {
         crt_bundle_attach: Some(esp_idf_sys::esp_crt_bundle_attach),
