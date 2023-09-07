@@ -137,7 +137,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         ..Default::default()
     })?);
 
-    get_request(&mut client);
-    test_https_client(&mut client);
-    Ok(())
+    loop {
+        let _ = get_request(&mut client);
+        let _ = test_https_client(&mut client);
+        std::thread::sleep(std::time::Duration::from_secs(2));
+    }
 }
